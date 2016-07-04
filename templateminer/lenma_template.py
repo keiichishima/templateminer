@@ -4,9 +4,11 @@
 """LenMa: Length Matters Syslog Message Clustering.
 """
 
+from Levenshtein import distance as levenshtein_distance
 import numpy as np
 from sklearn.metrics import accuracy_score
 from sklearn.metrics.pairwise import cosine_similarity
+import ssdeep
 
 from templateminer import template
 
@@ -37,12 +39,38 @@ class LenmaTemplate(template.Template):
         ac_score = accuracy_score(fill_wildcard, new_words)
         return ac_score
 
+    def _get_wcr(self):
+        return self.words.count('') / self.nwords
+
+    def _get_accuracy_score2(self, new_words):
+        # accuracy score 2
+        # wildcard word matches nothing
+        wildcard_ratio = self._get_wcr()
+        ac_score = accuracy_score(self.words, new_words)
+        return (ac_score / (1 - wildcard_ratio), wildcard_ratio)
+
     def _get_similarity_score_cosine(self, new_words):
         # cosine similarity
         wordlens = np.asarray(self._wordlens).reshape(1, -1)
         new_wordlens = np.asarray([len(w) for w in new_words]).reshape(1, -1)
         cos_score = cosine_similarity(wordlens, new_wordlens)
         return cos_score
+
+    def _get_similarity_score_levenshtein(self, new_words):
+        # levenshtein edit distance based
+        d = sum([levenshtein_distance(self.words[idx],
+                                     new_words[idx])
+                if self.words[idx] != '' else 0
+                for idx in range(self.nwords)])
+        levenshtein_score = 1 - d / (sum(self._wordlens)
+                                     + sum([len(w) for w in new_words]))
+        return levenshtein_score
+
+    def _get_similarity_score_jaccard(self, new_words):
+        ws = set(self.words) - set('')
+        nws = set([new_words[idx] if self.words[idx] != '' else ''
+                   for idx in range(len(new_words))]) - set('')
+        return len(ws & nws) / len(ws | nws)
 
     def _count_same_word_positions(self, new_words):
         c = 0
@@ -62,9 +90,35 @@ class LenmaTemplate(template.Template):
             return 1
 
         cos_score = self._get_similarity_score_cosine(new_words)
-        if self._count_same_word_positions(new_words) < 3:
-            return 0
-        return cos_score
+
+        case = 6
+        if case == 1:
+            (ac2_score, ac2_wcr) = self._get_accuracy_score2(new_words)
+            if ac2_score < 0.5:
+                return 0
+            return cos_score
+        elif case == 2:
+            (ac2_score, ac2_wcr) = self._get_accuracy_score2(new_words)
+            return (ac2_score + cos_score) / 2
+        elif case == 3:
+            (ac2_score, ac2_wcr) = self._get_accuracy_score2(new_words)
+            return ac2_score * cos_score
+        elif case == 4:
+            (ac2_score, ac2_wcr) = self._get_accuracy_score2(new_words)
+            print(ac2_score, ac2_wcr)
+            tw = 0.5
+            if ac2_score < tw + (ac2_wcr * (1 - tw)):
+                return 0
+            return cos_score
+        elif case == 5:
+            jc_score = self._get_similarity_score_jaccard(new_words)
+            if jc_score < 0.5:
+                return 0
+            return cos_score
+        elif case == 6:
+            if self._count_same_word_positions(new_words) < 3:
+                return 0
+            return cos_score
 
     def update(self, new_words):
         self._counts += 1
@@ -103,6 +157,9 @@ class LenmaTemplateManager(template.TemplateManager):
                 continue
             candidates.append((index, score))
         candidates.sort(key=lambda c: c[1], reverse=True)
+        if False:
+            for (i,s) in candidates:
+                print('    ', s, self.templates[i])
         if len(candidates) > 0:
             index = candidates[0][0]
             self._templates[index].update(words)
