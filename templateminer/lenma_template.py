@@ -4,6 +4,8 @@
 """LenMa: Length Matters Syslog Message Clustering.
 """
 
+import json
+
 from Levenshtein import distance as levenshtein_distance
 import numpy as np
 from sklearn.metrics import accuracy_score
@@ -13,16 +15,35 @@ import ssdeep
 from templateminer import template
 
 class LenmaTemplate(template.Template):
-    def __init__(self, index, words, wordlens=None):
-        self._index = index
-        self._words = words
-        self._nwords = len(words)
-        if wordlens is not None:
-            assert(len(wordlens) == self._nwords)
-            self._wordlens = wordlens
+    def __init__(self, index=None, words=None, json=None):
+        if json is not None:
+            # restore from the jsonized data.
+            self._load_as_text(json)
         else:
+            # initialize with the specified index and words vlaues.
+            assert(index is not None)
+            assert(words is not None)
+            self._index = index
+            self._words = words
+            self._nwords = len(words)
             self._wordlens = [len(w) for w in words]
-        self._counts = 1
+            self._counts = 1
+
+    @property
+    def wordlens(self):
+        return self._wordlens
+
+    def _dump_as_text(self):
+        description = str(self)
+        data = json.dumps([self.index, self.words, self.nwords, self.wordlens, self.counts])
+        return (self.index, description, data)
+
+    def _load_as_text(self, data):
+        (self._index,
+         self._words,
+         self._nwords,
+         self._wordlens,
+         self._counts) = json.loads(data)
 
     def _try_update(self, new_words):
         try_update = [self.words[idx] if self._words[idx] == new_words[idx]
@@ -145,11 +166,14 @@ class LenmaTemplateManager(template.TemplateManager):
             for template in predefined_templates:
                 self._append_template(template)
 
+    def _rebuild_template(self, data):
+        return LenmaTemplate(json=data)
+
     def infer_template(self, words):
         nwords = len(words)
 
         candidates = []
-        for (index, template) in enumerate(self._templates):
+        for (index, template) in enumerate(self.templates):
             if nwords != template.nwords:
                 continue
             score = template.get_similarity_score(words)
@@ -162,11 +186,11 @@ class LenmaTemplateManager(template.TemplateManager):
                 print('    ', s, self.templates[i])
         if len(candidates) > 0:
             index = candidates[0][0]
-            self._templates[index].update(words)
-            return self._templates[index]
+            self.templates[index].update(words)
+            return self.templates[index]
 
         new_template = self._append_template(
-            LenmaTemplate(len(self._templates), words))
+            LenmaTemplate(len(self.templates), words))
         return new_template
 
 
