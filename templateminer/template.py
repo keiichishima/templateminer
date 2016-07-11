@@ -24,18 +24,19 @@ class Template(object):
     def counts(self):
         return self._counts
 
-    def _dump_as_text(self):
-        """Dumps the data structure as a text format to serialize the
+    def _dump_as_json(self):
+        """Dumps the data structure as a JSON format to serialize the
         object.
 
-        This internal function may be called by the TemplateDatabase
+        This internal function is called by the TemplateManager
         class.
         """
         assert(False)
 
-    def _load_as_text(self, data):
-        """Initializes the instance with the provided text data.
-        Normally called by the initializer.
+    def _restore_from_json(self, data):
+        """Initializes the instance with the provided JSON data.
+
+        This internal function is normally called by the initializer.
         """
         assert(False)
 
@@ -84,15 +85,28 @@ class TemplateManager(object):
         """
         assert(False)
 
-    def _rebuild_template(self, data):
-        """Rebuild a template instance from data (usually a serialized
-        data when TemplateManager is destructed).
 
-        This internal function may be called by the TemplateDatabase
-        class.
+    def dump_template(self, index):
+        """Dumps a specified template data structure usually in a text
+        format.
+
+        Args:
+          index: a template index.
+
+        Returns:
+          A serialized text data of the specified template.
+        """
+        assert(False)
+
+    def restore_template(self, data):
+        """Creates a template instance from data (usually a serialized
+        data when LogDatabase.close() method is called.
+
+        This function is called by the LogDatabase class.
 
         Args:
           data: a data required to rebuild a template instance.
+
         Returns:
           A template instance.
         """
@@ -101,8 +115,8 @@ class TemplateManager(object):
     def _append_template(self, template):
         """Append a template.
 
-        This internal function may be called by the TemplateDatabase
-        class.
+        This internal function may be called by the LogDatabase
+        class too.
 
         Args:
           template: a new template to be appended.

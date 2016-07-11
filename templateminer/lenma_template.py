@@ -18,7 +18,7 @@ class LenmaTemplate(template.Template):
     def __init__(self, index=None, words=None, json=None):
         if json is not None:
             # restore from the jsonized data.
-            self._load_as_text(json)
+            self._restore_from_json(json)
         else:
             # initialize with the specified index and words vlaues.
             assert(index is not None)
@@ -33,12 +33,11 @@ class LenmaTemplate(template.Template):
     def wordlens(self):
         return self._wordlens
 
-    def _dump_as_text(self):
+    def _dump_as_json(self):
         description = str(self)
-        data = json.dumps([self.index, self.words, self.nwords, self.wordlens, self.counts])
-        return (self.index, description, data)
+        return json.dumps([self.index, self.words, self.nwords, self.wordlens, self.counts])
 
-    def _load_as_text(self, data):
+    def _restore_from_json(self, data):
         (self._index,
          self._words,
          self._nwords,
@@ -166,7 +165,10 @@ class LenmaTemplateManager(template.TemplateManager):
             for template in predefined_templates:
                 self._append_template(template)
 
-    def _rebuild_template(self, data):
+    def dump_template(self, index):
+        return self.templates[index]._dump_as_json()
+
+    def restore_template(self, data):
         return LenmaTemplate(json=data)
 
     def infer_template(self, words):
